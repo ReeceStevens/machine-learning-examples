@@ -66,7 +66,7 @@ def main():
     model = build_model(input_shape, num_classes)
 
     batch_size = 128
-    epochs = 4
+    epochs = 2
 
     print("Training model...")
     model.fit(x_train, y_train,
