@@ -151,7 +151,7 @@ if __name__ == '__main__':
     model.fit_generator(
         training_data(),
         4000,
-        epochs=4,
+        epochs=2,
         callbacks=[save_model_callback, tensorboard_callback],
         validation_data=testing_data(),
         validation_steps=900
