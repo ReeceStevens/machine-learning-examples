@@ -16,7 +16,7 @@ from keras import backend as K
 from scipy.misc import imread
 import numpy as np
 
-num_classes = 47
+DATASET_BASE = '/home/reece/innolitics/10x/datasets/simpsons'
 
 character_names = [
     "apu_nahasapeemapetilon",
@@ -70,47 +70,43 @@ character_names = [
 
 IMAGE_DIMS = (256, 256)
 
-def extract_data():
-    dataset_base = '/home/reece/innolitics/10x/datasets/simpsons'
-    dataset = {}
-    for data_dir, _, filenames in os.walk(dataset_base):
-        image_data = (imread(os.path.join(data_dir, filename))
-                      for filename in filenames
-                      if filename.endswith('.jpg'))
-        class_name = data_dir.split('/')[-1]
-        dataset[class_name] = image_data
-    return dataset
+def load_processed_image_data(path):
+    img = image.load_img(path, target_size=IMAGE_DIMS)
+    img_array = image.img_to_array(img)
+    expanded_img_array = np.expand_dims(img_array, axis=0)
+    return preprocess_input(expanded_img_array)
+
+def classification_output(class_name):
+    out_data = np.zeros(len(character_names))
+    out_data[character_names.index(class_name)] = 1
+    return np.expand_dims(out_data, axis=0) # Change this to have more samples per batch
+
+def data_class(path):
+    if path.endswith('.jpg'):
+        data_class_indicator = hash(path) % 10
+        if data_class_indicator < 7:
+            return 'training'
+        elif data_class_indicator < 10:
+            return 'testing'
 
 def training_data():
-    dataset_base = '/home/reece/innolitics/10x/datasets/simpsons'
-    for data_dir, _, filenames in os.walk(dataset_base):
+    for data_dir, _, filenames in os.walk(DATASET_BASE):
         class_name = data_dir.split('/')[-1]
         if class_name != '':
-            for idx, filename in enumerate(filenames):
-                if idx % 5 != 0 and filename.endswith('.jpg'):
-                    img = image.load_img(os.path.join(data_dir, filename), target_size=IMAGE_DIMS)
-                    image_data = image.img_to_array(img)
-                    image_data = np.expand_dims(image_data, axis=0)
-                    image_data = preprocess_input(image_data)
-                    out_data = np.zeros(len(character_names))
-                    out_data[character_names.index(class_name)] = 1
-                    out_data = np.expand_dims(out_data, axis=0) # Change this to have more samples per batch
+            for filename in filenames:
+                if data_class(data_dir + filename) == 'training':
+                    image_data = load_processed_image_data(os.path.join(data_dir, filename))
+                    out_data = classification_output(class_name)
                     yield (image_data, out_data)
 
 def testing_data():
-    dataset_base = '/home/reece/innolitics/10x/datasets/simpsons'
-    for data_dir, _, filenames in os.walk(dataset_base):
+    for data_dir, _, filenames in os.walk(DATASET_BASE):
         class_name = data_dir.split('/')[-1]
         if class_name != '':
-            for idx, filename in enumerate(filenames):
-                if idx % 5 == 0 and filename.endswith('.jpg'):
-                    img = image.load_img(os.path.join(data_dir, filename), target_size=IMAGE_DIMS)
-                    image_data = image.img_to_array(img)
-                    image_data = np.expand_dims(image_data, axis=0)
-                    image_data = preprocess_input(image_data)
-                    out_data = np.zeros(len(character_names))
-                    out_data[character_names.index(class_name)] = 1
-                    out_data = np.expand_dims(out_data, axis=0) # Change this to have more samples per batch
+            for filename in filenames:
+                if data_class(data_dir + filename) == 'testing':
+                    image_data = load_processed_image_data(os.path.join(data_dir, filename))
+                    out_data = classification_output(class_name)
                     yield (image_data, out_data)
 
 def generate_model():
@@ -138,8 +134,6 @@ def generate_model():
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
-    # Now the top layers we added are well trained
-    # And we can start tweaking the base model's top layers (carefully).
 
 if __name__ == '__main__':
     tensorboard_callback = keras.callbacks.TensorBoard(log_dir='tensorboard', histogram_freq=0, write_graph=True, write_images=False)
