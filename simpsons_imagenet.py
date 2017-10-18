@@ -70,16 +70,25 @@ character_names = [
 
 IMAGE_DIMS = (256, 256)
 
+# def load_processed_image_data(path):
+#     img = image.load_img(path, target_size=IMAGE_DIMS)
+#     img_array = image.img_to_array(img)
+#     expanded_img_array = np.expand_dims(img_array, axis=0)
+#     return preprocess_input(expanded_img_array)
 def load_processed_image_data(path):
     img = image.load_img(path, target_size=IMAGE_DIMS)
     img_array = image.img_to_array(img)
-    expanded_img_array = np.expand_dims(img_array, axis=0)
-    return preprocess_input(expanded_img_array)
+    return preprocess_input(img_array)
+
+# def classification_output(class_name):
+#     out_data = np.zeros(len(character_names))
+#     out_data[character_names.index(class_name)] = 1
+#     return np.expand_dims(out_data, axis=0) # Change this to have more samples per batch
 
 def classification_output(class_name):
     out_data = np.zeros(len(character_names))
     out_data[character_names.index(class_name)] = 1
-    return np.expand_dims(out_data, axis=0) # Change this to have more samples per batch
+    return out_data
 
 def data_class(path):
     if path.endswith('.jpg'):
@@ -108,6 +117,17 @@ def testing_data():
                     image_data = load_processed_image_data(os.path.join(data_dir, filename))
                     out_data = classification_output(class_name)
                     yield (image_data, out_data)
+
+def batch_generator(partition, batch_size):
+    if partition == 'training':
+        generator = training_data()
+    elif partition == 'testing':
+        generator = testing_data()
+    else:
+        raise Exception('Unsupported partition')
+    while True:
+        image_batch, classification_batch = zip(*[next(generator) for _ in range(batch_size)])
+        yield np.array(image_batch), np.array(classification_batch)
 
 def generate_model():
     base_model = InceptionV3(weights='imagenet', include_top=False, input_shape=(*IMAGE_DIMS, 3))
@@ -142,13 +162,14 @@ if __name__ == '__main__':
     model = generate_model()
 
     print("Training model")
+    batch_size = 64
     model.fit_generator(
-        training_data(),
-        4000,
-        epochs=2,
+        batch_generator('training', batch_size),
+        50,
+        epochs=200,
         callbacks=[save_model_callback, tensorboard_callback],
-        validation_data=testing_data(),
-        validation_steps=900
+        validation_data=batch_generator('testing', batch_size),
+        validation_steps=10
     )
 
     print("Training Complete")
